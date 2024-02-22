@@ -172,6 +172,8 @@ int main(int argc, char *argv[])
   /* Your code here */
   u32 current_time = 0;
   u32 total_processes = 0;
+  struct process_list proc_sort;
+  TAILQ_INIT(&proc_sort);
 
 
   // Initialize an empty linked list for sorted processes
@@ -188,21 +190,6 @@ int main(int argc, char *argv[])
   //     new_process->response_time = 0;
   //     new_process->remaining_time = new_process->burst_time;
   //     total_processes++;
-
-  //     // Find the position to insert the new process based on arrival time
-  //     TAILQ_FOREACH(iter, &list, pointers) {
-  //         if (new_process->arrival_time < iter->arrival_time) {
-  //             // Insert the new process before the current process in the sorted list
-  //             TAILQ_INSERT_BEFORE(iter, new_process, pointers);
-  //             break;
-  //         }
-  //     }
-  //     // If the new process is not inserted yet (i.e., it has the latest arrival time),
-  //     // insert it at the end of the sorted list
-  //     if (iter == NULL) {
-  //         TAILQ_INSERT_TAIL(&list, new_process, pointers);
-  //     }
-  // }
 
   for (u32 i = 0; i < size; ++i)
   {
@@ -222,14 +209,10 @@ int main(int argc, char *argv[])
   //     printf("Arrival time: %u\n", process_ptr->arrival_time);
   // }
 
-
-  // Now sorted_list contains all processes in sorted order by arrival time
-
-
   // Round Robin Scheduling Logic
   while (!TAILQ_EMPTY(&list)) {
-      //printf("Current time: %u\n", current_time);
-      // Debugging chart header
+      // printf("Current time: %u\n", current_time);
+      // // Debugging chart header
       // printf("-----------------------------------------------------------------\n");
       // printf("| Process ID | Arrival Time | Burst Time | Time Remaining        |\n");
       // printf("-----------------------------------------------------------------\n");
@@ -290,10 +273,6 @@ int main(int argc, char *argv[])
           }
       }
 
-      
-
-      
-
       // Update remaining time for the process
       current_process->remaining_time -= execute_time;
 
@@ -302,26 +281,67 @@ int main(int argc, char *argv[])
 
       // Check if there are new processes arriving at the current time
       // while (total_processes < size && data[total_processes].arrival_time == current_time) {
-      for (u32 i = 0; i < size; ++i)
-      {
-        // Insert the new process into the ready queue
-          struct process *new_process = &data[i];
-          if (new_process->inq == false && new_process->arrival_time <= current_time)
-          {
-            new_process->inq = true;
-            new_process->waiting_time = 0;
-            new_process->run_time = 0;
-            new_process->response_time = 0;
-            new_process->remaining_time = new_process->burst_time;
+      // for (u32 i = 0; i < size; ++i)
+      // {
+      //   // Insert the new process into the ready queue
+      //     struct process *new_process = &data[i];
+      //     if (new_process->inq == false && new_process->arrival_time <= current_time)
+      //     {
+      //       new_process->inq = true;
+      //       new_process->waiting_time = 0;
+      //       new_process->run_time = 0;
+      //       new_process->response_time = 0;
+      //       new_process->remaining_time = new_process->burst_time;
 
-            TAILQ_INSERT_TAIL(&list, new_process, pointers);
-            total_processes++;
+
+      //       TAILQ_INSERT_TAIL(&list, new_process, pointers);
+      //       total_processes++;
+      //     }
+      // }
+      // Loop through the processes and add those with the same arrival time to the temporary list
+      struct process_list temp_list;
+      TAILQ_INIT(&temp_list);
+
+      for (u32 i = 0; i < size; ++i) {
+          struct process *new_process = &data[i];
+          if (!new_process->inq && new_process->arrival_time <= current_time) {
+              new_process->inq = true;
+              new_process->waiting_time = 0;
+              new_process->run_time = 0;
+              new_process->response_time = 0;
+              new_process->remaining_time = new_process->burst_time;
+              total_processes++;
+
+              // Find the correct position to insert the process based on arrival time
+              struct process *iter;
+              bool inserted = false;
+              TAILQ_FOREACH(iter, &temp_list, pointers) {
+                  if (new_process->arrival_time < iter->arrival_time) {
+                      // Insert new process before current process in the temp list
+                      TAILQ_INSERT_BEFORE(iter, new_process, pointers);
+                      inserted = true;
+                      break;
+                  }
+              }
+              if (!inserted) {
+                  // If the new process is not inserted yet, insert it at the end of the temporary list
+                  TAILQ_INSERT_TAIL(&temp_list, new_process, pointers);
+              }
           }
       }
 
+      // Merge the temporary list with the main queue while preserving the order
+      while (!TAILQ_EMPTY(&temp_list)) {
+          struct process *temp_process = TAILQ_FIRST(&temp_list);
+          TAILQ_REMOVE(&temp_list, temp_process, pointers);
+          
+          // Insert the process into the main queue
+          TAILQ_INSERT_TAIL(&list, temp_process, pointers);
+      }
+
+
       // If the process is not completed, insert it back into the ready queue
       if (current_process->remaining_time > 0) {
-        //update remaining time?
         TAILQ_INSERT_TAIL(&list, current_process, pointers);
       }
       else
